@@ -108,18 +108,6 @@ func TestKindString(t *testing.T) {
 	}
 }
 
-func BenchmarkParse(b *testing.B) {
-	p := musiclink.New()
-	ctx := b.Context()
-	const url = "https://music.yandex.ru/album/7653771/track/2219127?utm_medium=copy_link&ref_id=4f797a99-8924-4d0e-95f9-0c8ca5e6295d"
-	b.ReportAllocs()
-	for b.Loop() {
-		if _, err := p.Parse(ctx, url); err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
 func FuzzParse(f *testing.F) {
 	for _, s := range []string{
 		"https://music.yandex.ru/album/1/track/2",

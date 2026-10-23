@@ -153,6 +153,43 @@ short links in a pool of at most `WithConcurrency` goroutines. Equal input
 strings are parsed once. When `ctx` is done, links not yet expanded get its
 error.
 
+## Performance
+
+A regular link is parsed in one pass over the string, without `net/url` and
+without allocations: the scheme and host are cut off, the query and fragment
+dropped, the host looked up in a map, and the path split into segments on
+a stack array. The IDs in a `Link` are substrings of the input. Only
+percent-escaped segments, upper case hosts and errors allocate.
+
+```sh
+go test -run '^$' -bench . -benchmem
+```
+
+Go 1.27.1, Apple M5:
+
+| Benchmark                                             | ns/op | B/op | allocs/op |
+|-------------------------------------------------------|------:|-----:|----------:|
+| `Parse` Yandex track, `/album/…/track/…?utm_…&ref_id=…` |   124 |    0 |         0 |
+| `Parse` Yandex playlist, UUID                         |   113 |    0 |         0 |
+| `Parse` Yandex user playlist                          |   112 |    0 |         0 |
+| `Parse` Spotify track, `?si=…`                        |   104 |    0 |         0 |
+| `Parse` Spotify, `/intl-de/album/…`                   |   107 |    0 |         0 |
+| `Parse` Spotify URI                                   |    59 |    0 |         0 |
+| `Parse` Deezer track, `/en/…?utm_…`                   |   102 |    0 |         0 |
+| `Parse` upper case host                               |   117 |   16 |         1 |
+| `Parse` error: unknown host                           |   207 |  112 |         3 |
+| `Parse` error: malformed ID                           |   418 |  256 |         7 |
+| `Parse` error: unsupported kind                       |   509 |  336 |         7 |
+| `url.Parse` alone, for comparison                     |   137 |  144 |         1 |
+| `ParseBatch`, 10 000 local links                      |   137 per link | 116 per link | 37 per batch |
+| `Parse` short link, in-memory transport               |  1671 | 3730 |        30 |
+
+A whole `Parse` is cheaper than `url.Parse` of the same link. Errors cost
+more because they carry context, built with `fmt.Errorf`. `ParseBatch` adds
+the result slice and the deduplication map. A short link is dominated by
+the network: the last row is only the `net/http` client overhead, a real
+request takes tens to hundreds of milliseconds.
+
 ## CLI
 
 ```
