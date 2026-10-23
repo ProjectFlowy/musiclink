@@ -46,8 +46,11 @@ func (c parseCmd) Run(ctx context.Context, in io.Reader, out io.Writer) error {
 	}
 	urls := c.URLs
 	if len(urls) == 0 || len(urls) == 1 && urls[0] == "-" {
+		if isTerminal(in) {
+			_, _ = fmt.Fprintln(os.Stderr, "Reading links from stdin, one per line. End with Ctrl-D.")
+		}
 		var err error
-		if urls, err = readLines(in); err != nil {
+		if urls, err = readLines(ctx, in); err != nil {
 			return err
 		}
 	}
@@ -68,18 +71,43 @@ func (c parseCmd) Run(ctx context.Context, in io.Reader, out io.Writer) error {
 	return failed(results)
 }
 
-func readLines(r io.Reader) ([]string, error) {
-	var lines []string
-	s := bufio.NewScanner(r)
-	for s.Scan() {
-		if line := strings.TrimSpace(s.Text()); line != "" {
-			lines = append(lines, line)
+// readLines reads non-empty lines until EOF or until ctx is done.
+func readLines(ctx context.Context, r io.Reader) ([]string, error) {
+	type result struct {
+		lines []string
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		var res result
+		s := bufio.NewScanner(r)
+		for s.Scan() {
+			if line := strings.TrimSpace(s.Text()); line != "" {
+				res.lines = append(res.lines, line)
+			}
 		}
+		res.err = s.Err()
+		done <- res
+	}()
+	select {
+	case res := <-done:
+		if res.err != nil {
+			return nil, fmt.Errorf("read stdin: %w", res.err)
+		}
+		return res.lines, nil
+	case <-ctx.Done():
+		// The reader stays blocked; the process is about to exit anyway.
+		return nil, fmt.Errorf("read stdin: %w", context.Cause(ctx))
 	}
-	if err := s.Err(); err != nil {
-		return nil, fmt.Errorf("read stdin: %w", err)
+}
+
+func isTerminal(r io.Reader) bool {
+	f, ok := r.(*os.File)
+	if !ok {
+		return false
 	}
-	return lines, nil
+	st, err := f.Stat()
+	return err == nil && st.Mode()&os.ModeCharDevice != 0
 }
 
 func failed(results []musiclink.Result) error {
@@ -169,6 +197,8 @@ func (versionCmd) Run(out io.Writer) error {
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// After the first signal, a second one kills the process right away.
+	context.AfterFunc(ctx, stop)
 
 	var c cli
 	k := kong.Parse(&c,
