@@ -22,7 +22,7 @@ func TestReadLinesCanceled(t *testing.T) {
 func TestParseStdin(t *testing.T) {
 	in := strings.NewReader("https://music.yandex.ru/users/music-blog/playlists/2190\n\n  https://www.deezer.com/en/album/983236081  \nhttps://open.spotify.com/show/5CfCWKI5pZ28U0uOzXkDHe\n")
 	var out strings.Builder
-	c := parseCmd{Output: "pretty", Offline: true, Timeout: time.Second}
+	c := parseCmd{URLs: []string{"-"}, Output: "pretty", Offline: true, Timeout: time.Second}
 	err := c.Run(t.Context(), in, &out)
 	if err == nil || err.Error() != "1 of 3 links not parsed" {
 		t.Errorf("Run() error = %v", err)

@@ -31,7 +31,7 @@ type cli struct {
 }
 
 type parseCmd struct {
-	URLs []string `arg:"" optional:"" name:"url" help:"Links to parse. With none or \"-\", links are read from stdin, one per line."`
+	URLs []string `arg:"" name:"url" help:"Links to parse, separated by spaces. A single \"-\" reads them from stdin, one per line."`
 
 	Output       string        `enum:"pretty,json" default:"pretty" help:"Output format: pretty or json."`
 	Offline      bool          `help:"Do not use the network; short links fail."`
@@ -45,7 +45,7 @@ func (c parseCmd) Run(ctx context.Context, in io.Reader, out io.Writer) error {
 		return errors.New("timeout must be positive")
 	}
 	urls := c.URLs
-	if len(urls) == 0 || len(urls) == 1 && urls[0] == "-" {
+	if len(urls) == 1 && urls[0] == "-" {
 		if isTerminal(in) {
 			_, _ = fmt.Fprintln(os.Stderr, "Reading links from stdin, one per line. End with Ctrl-D.")
 		}

@@ -193,7 +193,7 @@ request takes tens to hundreds of milliseconds.
 ## CLI
 
 ```
-musiclink parse <url>...     # with no URLs or "-", reads stdin, one link per line
+musiclink parse <url>...     # links separated by spaces; a single "-" reads stdin, one per line
   --output pretty|json       # default pretty
   --offline                  # never use the network
   --concurrency 8
